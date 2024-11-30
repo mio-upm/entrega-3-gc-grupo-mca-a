@@ -47,7 +47,7 @@ for i in operaciones:
 # Restricción 2
 for i in operaciones:
     for j in quirofanos:
-        model += lpSum(x[incompatible_op, j] for incompatible_op in L[i]) + x[i, j] <= 2
+        model += lpSum(x[incompatible_op, j] for incompatible_op in L[i]) + x[i, j] <= 1
 
 # Resolver el modelo
 model.solve()
