@@ -129,3 +129,7 @@ fig.update_layout(
 
 # Mostrar gráfico
 fig.show()
+
+fig.write_html("output.html")
+import webbrowser
+webbrowser.open("output.html")
