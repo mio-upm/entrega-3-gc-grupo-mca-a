@@ -1,4 +1,3 @@
-import itertools
 import pandas as pd
 from pulp import LpMinimize, LpProblem, LpVariable, lpSum
 import plotly.graph_objects as go
@@ -21,8 +20,8 @@ print(operaciones_data['Duración'])
 model = LpProblem("Minimización_de_quirofanos", LpMinimize)
 
 # Variables
-quirofanos = costes.index
-operaciones = operaciones_data['Código operación']
+quirofanos = range(len(costes))
+operaciones = range(len(operaciones_data))
 x = LpVariable.dicts("Asignación operación i a quirófano j", [(i, j) for i in operaciones for j in quirofanos], cat='Binary')
 y = LpVariable.dicts("Utilización quirofano j", quirofanos, lowBound=0, upBound=1, cat='Binary')
 
@@ -38,4 +37,14 @@ for j in quirofanos:
 
 # Resolver el modelo
 model.solve()
+
+# Resultados
+resultados = {j: [] for j in quirofanos}
+for i in operaciones:
+    for j in quirofanos:
+        if x[i, j].value() == 1:
+            resultados[j].append(i)
+
+for j in quirofanos:
+    print(f"Quirófano {j}: Operaciones {resultados[j]}")
    
