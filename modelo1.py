@@ -130,6 +130,6 @@ fig.update_layout(
 # Mostrar gráfico
 fig.show()
 
-fig.write_html("output.html")
+fig.write_html("solucion_modelo1.html")
 import webbrowser
-webbrowser.open("output.html")
+webbrowser.open("solucion_modelo1.html")
