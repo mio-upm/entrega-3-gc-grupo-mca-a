@@ -16,6 +16,7 @@ operaciones_data = operaciones_data.sort_values(by='Hora inicio ')
 operaciones_data['Duración'] = (operaciones_data['Hora fin'] - operaciones_data['Hora inicio ']).dt.total_seconds() / 60
 print(operaciones_data['Duración'])
 
+
 # Modelo
 model = LpProblem("Minimización_de_quirofanos", LpMinimize)
 
@@ -33,14 +34,25 @@ for i in operaciones:
     model += lpSum(x[i, j] for j in quirofanos) == 1
 
 for j in quirofanos:
-    model += lpSum(operaciones_data.loc[i, 'Duración'] * x[i, j] for i in range(1, len(operaciones)) if operaciones_data.loc[i, 'Hora inicio '] >= operaciones_data.loc[i-1, 'Hora fin']) <= 1440 * y[j]
+    model += lpSum(operaciones_data.loc[i, 'Duración'] * x[i, j]  for i in operaciones ) <= 1440 * y[j]
 
-for j in range(2, len(quirofanos)):
+# Precomputar pares de operaciones que se solapan
+overlapping_pairs = []
+for i in operaciones:
+    for k in operaciones:
+        if i < k: 
+            if (operaciones_data.loc[k, 'Hora inicio '] < operaciones_data.loc[i, 'Hora fin']):
+                overlapping_pairs.append((i, k))
+
+for j in quirofanos:
+    for (i, k) in overlapping_pairs:
+        model += x[i, j] + x[k, j] <= 1
+
+for j in range(1, len(quirofanos)):
     model += y[j-1] >= y[j]
 
 # Resolver el modelo
 model.solve()
-
 
 # Resultados
 asignaciones = {j: [] for j in quirofanos}
