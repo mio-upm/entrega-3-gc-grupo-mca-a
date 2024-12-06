@@ -1,7 +1,6 @@
 import pandas as pd
 from pulp import LpMinimize, LpProblem, LpVariable, lpSum
-import plotly.graph_objects as go
-import numpy as np
+import matplotlib.pyplot as plt
 
 # Leer datos
 costes = pd.read_excel('241204_costes.xlsx', index_col=0)
@@ -62,74 +61,38 @@ for i in operaciones:
             print(f"Operación {i} asignada al quirófano {j}")
             asignaciones[j].append(i)
 
-# Crear gráfico
-fig = go.Figure()
+# Graficar los resultados
+fig, ax = plt.subplots(figsize=(12, 8))
+colors = plt.cm.tab10.colors
 
-# Configuración del eje X
-hora_inicio = pd.Timestamp('2024-12-04 00:00')
-hora_fin = pd.Timestamp('2024-12-04 23:59')
-x_ticks = pd.date_range(hora_inicio, hora_fin, freq='15min')
-
-# Generar colores únicos para cada operación
-np.random.seed(42)
-colores = {
-    op: f"rgb({r},{g},{b})"
-    for op, (r, g, b) in zip(
-        operaciones_data["Código operación"],
-        zip(
-            np.random.randint(0, 256, len(operaciones_data)),
-            np.random.randint(0, 256, len(operaciones_data)),
-            np.random.randint(0, 256, len(operaciones_data)),
-        ),
-    )
-}
-
-# Dibujar operaciones
-for quir_idx, quir in enumerate(quirofanos):
-    for op in asignaciones[quir]:
+for idx, (quirofano, ops) in enumerate(asignaciones.items()):
+    for op in ops:
         op_data = operaciones_data[operaciones_data['Código operación'] == op]
         if not op_data.empty:
-            inicio = op_data['Hora inicio '].iloc[0]
-            fin = op_data['Hora fin'].iloc[0]
-            x_inicio = (inicio - hora_inicio).total_seconds() / 60
-            x_fin = (fin - hora_inicio).total_seconds() / 60
-            fig.add_trace(go.Scatter(
-                x=[x_inicio, x_fin],
-                y=[quir_idx, quir_idx],
-                mode='lines',
-                line=dict(color=colores[op], width=10),
-                name=f"{op} ({quir})",
-                hoverinfo="text",
-                text=[f"Operación: {op}, Quirófano: {quir}"]
-            ))
+            inicio = (op_data['Hora inicio '].iloc[0] - pd.Timestamp('2024-12-04 00:00')).total_seconds() / 3600
+            duracion = (op_data['Hora fin'].iloc[0] - op_data['Hora inicio '].iloc[0]).total_seconds() / 3600
+            ax.barh(
+                quirofano,
+                duracion,
+                left=inicio,
+                color=colors[idx % len(colors)],
+                edgecolor="black"
+            )
 
-# Configurar ejes
-fig.update_yaxes(
-    tickvals=[i for i in range(len(quirofanos))],
-    ticktext=quirofanos,
-    title_text="Quirófanos",
-    tickangle=0
-)
+# Configuración del eje x (horas)
+ax.set_xlim(0, 24)
+ax.set_xticks(range(0, 25, 2))
+ax.set_xticklabels([f"{h}:00" for h in range(0, 25, 2)])
+ax.set_xlabel("Hora del día")
+ax.set_ylabel("Quirófano")
+ax.set_title("Asignación de Operaciones a Quirófanos - Modelo 1")
 
-fig.update_xaxes(
-    tickvals=[(t - hora_inicio).total_seconds() / 60 for t in x_ticks],  # Convertir las horas a minutos
-    ticktext=[t.strftime('%H:%M') for t in x_ticks],
-    title_text="Horario (cada 15 minutos)",
-    tickangle=45
-)
+legend_items = []
+for quirofano, ops in asignaciones.items():
+    if ops:  # Solo incluir quirófanos con operaciones
+        label = f"{quirofano}: " + ", ".join(ops)
+        legend_items.append(label)
 
-fig.update_layout(
-    title="Asignación de Operaciones a Quirófanos",
-    xaxis_title="Horario",
-    yaxis_title="Quirófanos",
-    height=2000,
-    width=2500,
-    margin=dict(l=50, r=50, t=50, b=100),
-)
-
-# Mostrar gráfico
-fig.show()
-
-fig.write_html("solucion_modelo1.html")
-import webbrowser
-webbrowser.open("solucion_modelo1.html")
+plt.legend(legend_items,loc="upper left",bbox_to_anchor=(1, 1),title="Operaciones por Quirófano")
+plt.tight_layout()
+plt.show()
