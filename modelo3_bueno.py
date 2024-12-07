@@ -76,7 +76,7 @@ def resolver_maestro(planificaciones, relajado):
     # Restricción de cobertura: cada operación debe estar cubierta por al menos una planificación
     for i in operaciones:
         rmp += (
-            lpSum(Bik[i][k] * y[k] for k in planificaciones_idx) == 1,
+            lpSum(Bik[i][k] * y[k] for k in planificaciones_idx) >= 1,
             f"Cubrir_operacion_{i}",
         )
 
@@ -192,7 +192,7 @@ while True:
                         operaciones_data["Código operación"] == i, "Hora inicio "
                     ].values[0],
                     "Hora fin": operaciones_data.loc[
-                        operaciones_data["Código operación"] == k, "Hora fin"
+                        operaciones_data["Código operación"] == i, "Hora fin"
                     ].values[0],
                 }
             )
@@ -216,3 +216,112 @@ for idx, planificacion in enumerate(solucion["Planificaciones seleccionadas"]):
         print(
             f" - Operación: {op['Código operación']}, Inicio: {op['Hora inicio ']}, Fin: {op['Hora fin']}"
         )
+
+#%%
+
+#COMPROBAR REPETICIONES
+
+# 1. Comprobar operaciones repetidas
+from collections import defaultdict
+
+# Crear un diccionario para contar las veces que aparece cada operación
+operaciones_repetidas = defaultdict(list)
+
+for idx, planificacion in enumerate(planificaciones_finales):
+    for op in planificacion:
+        operaciones_repetidas[op["Código operación"]].append(idx)
+
+# Filtrar solo las operaciones que aparecen en más de un quirófano
+operaciones_duplicadas = {op: indices for op, indices in operaciones_repetidas.items() if len(indices) > 1}
+
+# Mostrar operaciones duplicadas
+if operaciones_duplicadas:
+    print("Operaciones duplicadas encontradas:")
+    for op, indices in operaciones_duplicadas.items():
+        print(f" - Operación {op} aparece en los quirófanos: {indices}")
+else:
+    print("No se encontraron operaciones duplicadas.")
+    
+    
+
+# 2. Eliminar operaciones duplicadas dejando una en el quirófano más adecuado
+if operaciones_duplicadas:
+    # Iterar sobre cada operación duplicada
+    for op, indices in operaciones_duplicadas.items():
+        # Contar cuántas operaciones repetidas tiene cada quirófano
+        repetidas_por_quirofano = {
+            idx: sum(
+                1
+                for operacion in planificaciones_finales[idx]
+                if operacion["Código operación"] in operaciones_duplicadas
+            )
+            for idx in indices
+        }
+
+        # Ordenar los quirófanos por la cantidad de operaciones repetidas (más repetidas primero)
+        indices_ordenados = sorted(repetidas_por_quirofano, key=repetidas_por_quirofano.get, reverse=True)
+
+        # Mantener la operación en el quirófano con menos repetidas y eliminarla de los demás
+        for idx in indices_ordenados[1:]:
+            planificaciones_finales[idx] = [
+                operacion for operacion in planificaciones_finales[idx] if operacion["Código operación"] != op
+            ]
+
+# 3. Eliminar quirófanos vacíos
+planificaciones_finales = [planificacion for planificacion in planificaciones_finales if planificacion]
+
+# Verificar el resultado final
+print("Planificaciones actualizadas:")
+for idx, planificacion in enumerate(planificaciones_finales):
+    print(f"Planificación {idx + 1}: {[op['Código operación'] for op in planificacion]}")
+
+#%%
+
+#GRAFICAR
+
+import matplotlib.pyplot as plt
+
+# Crear un diccionario para asignar quirófanos y planificaciones
+quirofanos_asignados = {f"Quirófano {i+1}": planificacion for i, planificacion in enumerate(planificaciones_finales)}
+
+# Crear el gráfico
+fig, ax = plt.subplots(figsize=(14, 8))  # Aumentamos el tamaño de la figura para mayor claridad
+colors = plt.cm.tab10.colors
+
+for idx, (quirofano, planificaciones) in enumerate(quirofanos_asignados.items()):
+    for op in planificaciones:
+        # Asegurarnos de que las fechas sean pandas.Timestamp
+        op["Hora inicio "] = pd.Timestamp(op["Hora inicio "])
+        op["Hora fin"] = pd.Timestamp(op["Hora fin"])
+
+        # Calcular el inicio y duración de la operación en horas
+        inicio = (op["Hora inicio "] - pd.Timestamp("2024-12-04 00:00")).total_seconds() / 3600
+        duracion = (op["Hora fin"] - op["Hora inicio "]).total_seconds() / 3600
+
+        # Dibujar una barra para la operación
+        ax.barh(
+            idx,  # Usamos el índice en lugar del nombre del quirófano
+            duracion,
+            left=inicio,
+            color=colors[idx % len(colors)],
+            edgecolor="black",
+        )
+
+# Configuración del eje X (horas)
+ax.set_xlim(0, 24)
+ax.set_xticks(range(0, 25, 2))
+ax.set_xticklabels([f"{h}:00" for h in range(0, 25, 2)])
+ax.set_xlabel("Hora del día")
+ax.set_title("Asignación de Operaciones a Quirófanos")
+
+# Configuración del eje Y: escala de 5 en 5 con números
+num_quirofanos = len(quirofanos_asignados)
+max_y = (num_quirofanos // 5 + 1) * 5  # Redondear al múltiplo de 5 más cercano
+ax.set_ylim(0, max_y)  # Ajustar el límite superior del eje Y
+ax.set_yticks(range(0, max_y + 1, 5))  # Configurar las marcas de 5 en 5
+ax.set_yticklabels(range(0, max_y + 1, 5), fontsize=10)  # Mostrar los números como etiquetas
+
+plt.tight_layout()
+plt.show()
+
+
